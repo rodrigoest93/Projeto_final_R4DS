@@ -1,0 +1,549 @@
+---
+title: "Projeto Curso-R: R para Ciência de Dados I"
+author: "Rodrigo Almeida Figueira"
+date: "11/junho/2020"
+output:
+  rmdformats::readthedown:
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(ggcorrplot)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+____________________________________________________________________________________________________
+
+
+## Introdução
+Este artigo serve como trabalho de conclusão do curso *R para Ciência de Dados I*, ministrado em junho de 2020, pela [Curso-R](https://curso-r.com/). Tem como objetivo colocar em prática todo conteúdo aprendido no curso através de uma situação problema. Serão utilizados pacotes como `tidyverse` e `ggplot2`.
+  
+A base em análise será do IMDB, em que consta uma série de filmes com informações de avaliação da crítica e orçamentárias e servirá para direcionar a produção para que um filme obtennha sucesso.
+
+
+____________________________________________________________________________________________________
+
+
+## Entendimento do Problema
+
+Deseja-se investir na produção de um filme sem ter qualquer conhecimento sobre cinema e produção. As únicas informações obtidas estão contidas em uma base de dados do IMDB, que conta com as notas da crítica e características particulares de cada filme.
+
+O maior interesse é de se obter um sucesso financeiro e da crítica, porém caso algum outro critério seja atraente, pode-se mudar de ideia.
+
+
+____________________________________________________________________________________________________
+
+
+## Coleta de dados
+
+A base de dados tem origem do portal Kaggle, tendo disponíveis informações de 100 anos de filme (1916 - 2016), contanto com 15 variáveis distribuídas em diversas características destas produções.
+
+Variáveis da base de dados IMDB
+```{r, echo = FALSE, message = FALSE, warning = FALSE, fig.align='center'}
+
+imdb <- read_rds("imdb.rds")
+
+variaveis <- imdb %>% 
+  names() %>% 
+    as.data.frame()
+
+colnames(variaveis) <- "Variáveis"
+
+variaveis %>%   
+      knitr::kable()
+```
+
+
+____________________________________________________________________________________________________
+
+
+## Exploração dos dados
+
+Como estão em análise as características de repercussão dos filmes, criou-se a variável de Lucro, definida por:
+
+
+$$
+Lucro = Receita - Orçamento
+$$
+
+
+
+Sendo assim, para primeira análise, verificou-se a correlação entre as variávereis quantitativas:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.align='center', fig.cap="Figura 1. Correlograma das variáveis quantitativas"}
+cores <- data.frame(vinho ="#8c100b", verde = "#08592a")
+imdb <- imdb %>% 
+  mutate(
+    lucro = receita - orcamento
+  )
+imdb %>% 
+  select_if(is.numeric) %>% 
+    cor(, use = "pairwise.complete.obs") %>% 
+      ggcorrplot(hc.order = TRUE, 
+                             lab = TRUE, 
+                             lab_size = 3,
+                             tl.cex = 8,
+                             method="circle", 
+                             colors = c("tomato2", "white", cores$verde),
+                             ggtheme=theme_bw, insig = "blank")
+```
+
+De acordo com o Correlograma, podem-se notar algumas relações interssantes para a análise:
+
+**Nota IMDB**
+
+Mesmo com as coeficientes fracos, a correlação das variáveis aponta que:
+
+- O filme de sucesso na crítica se motra mais antigo, com mais likes no facebook, lucro e receita, além de ter longa duração.
+
+**Orçamento, Receita e Lucro**
+
+Nesta ocasião não se deve considerar a relação entre lucro e receita, especificamente, visto que as duas são colineares, uma é proveninete da outra. Com isso verifica-se que:
+
+- Quanto ao orçamento, verifica-se que os filmes mais atuais e com maior duração tem orçamentos mais elevados. Em relação às consequências de um orçamento elevado, nota-se que ocasiona receita e likes no facebook maiores. Além disso, nota-se também que quanto maior o lucro, maior os likes no facebook.
+
+Como o interesse maior é em destacar os filmes com sucessos financeiro e na crítica, serão analisados os histogramas das variáveis lucro e nota do IMDB, além dos devidos quartis.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.cap="Figura 2. Histogramas do lucro e nota do IMDB."}
+
+quartis <- c(quantile(imdb$nota_imdb, na.rm = TRUE, 0.5),
+             quantile(imdb$nota_imdb, na.rm = TRUE, 0.75), 
+             quantile(imdb$lucro, na.rm = TRUE, 0.5),
+             quantile(imdb$lucro, na.rm = TRUE, 0.75))
+
+g_nota <- imdb %>%
+  ggplot() +
+    geom_histogram(aes(x = nota_imdb), colour = "white" , fill = cores$vinho) +
+    geom_vline(xintercept = quantile(imdb$nota_imdb, na.rm = TRUE, 0.75), color = "green") +
+    geom_vline(xintercept = quantile(imdb$nota_imdb, na.rm = TRUE, 0.25)) +
+     labs(x = "Nota IMDB", 
+          y = "Frequência", 
+          title = "Distribuição Nota IMDB", 
+          subtitle = paste("1ºQ = ", quantile(imdb$nota_imdb, na.rm = TRUE, 0.25) ,"      3º Quatil = ", quantile(imdb$nota_imdb, na.rm = TRUE, 0.75))) +
+  theme_minimal()
+     
+g_lucro <- imdb %>%   ggplot()+
+  geom_histogram(aes(x = lucro), colour = "white", fill = cores$verde) +
+  geom_vline(xintercept = quantile(imdb$lucro, na.rm = TRUE, 0.75), color = "green") +
+  geom_vline(xintercept = quantile(imdb$lucro, na.rm = TRUE, 0.25)) +
+    labs(x = "Lucro", 
+         y = "Frequência", 
+         title = "Distribuição Lucro", 
+         subtitle = paste("1ºQ = ", quantile(imdb$lucro, na.rm = TRUE, 0.25) ,"      3ºQ = ", quantile(imdb$lucro, na.rm = TRUE, 0.75))) +
+  theme_minimal()
+
+g_nota + g_lucro
+```
+
+De acordo com as distribuições das variáveis lucro e nota do IMDB, toma-se por definição de sucesso todos os filmes que encontram-se acima do 3º quartil de cada um destes atributos, ou seja:
+
+<center>
+Variável | 3º Quartil
+-----------|-------------
+Nota IMDB | > 7,1
+Lucro ($) | > 30.127.620
+</center>
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+imdb <- imdb %>% 
+  mutate(
+    sucesso = ifelse(nota_imdb > 7.1 & lucro > 30127620, "SIM", "NAO")
+  )
+```
+
+Com isso cria-se a variável sucesso (SIM ou NAO), a fim de descobrir as características dos filmes que obtiveram SIM neste atributo. 
+
+Separando as outras variáveis entre categotias de pré e pós lançamento de um filme e considerando que pode-se interferir nestas avriàveis, tem-se que:
+
+
+
+Pré lançamento | Pós lançamento
+-----------|-------------
+Diretor | Nota IMDB
+Duração | Likes no Facebook
+Cor | Receita
+Gênero | Lucro
+Classificação |
+Orçamento |
+Ator 1, 2 e 3 |
+
+**Características de Pré lançamento**
+
+Trabalhando primeiro as variáveis de pré lançamento, verificam-se as principais características de uma produção de sucesso.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE,fig.dim= c(10,12) ,fig.align='center', fig.cap="Figura 3. Gráficos de características de pré lançamento dos filmes de sucesso"}
+filmes_sucesso <- imdb %>% 
+  filter(sucesso == "SIM")
+
+quadro_atores <- c(filmes_sucesso$ator_1,
+                      filmes_sucesso$ator_2, 
+                      filmes_sucesso$ator_3)
+quadro_atores <- quadro_atores %>% 
+  as.data.frame()
+colnames(quadro_atores) <- "atores"
+
+tabela_generos <- filmes_sucesso$generos %>%
+  paste(collapse = "|") %>%
+    str_split(pattern = "\\|", simplify = TRUE) %>%
+      table() %>% 
+  as.data.frame()
+
+colnames(tabela_generos) <- c("generos", "freq")
+
+
+g1 <- filmes_sucesso %>% 
+    count(diretor) %>% 
+      top_n(10) %>%
+        mutate(
+    diretor = forcats::fct_reorder(diretor, n),
+    prop = n / sum(n), prop = scales::percent(prop)
+  ) %>% 
+  ggplot() +
+    geom_col(aes(x = diretor , y = n), fill = cores$vinho) +
+      geom_label(aes(x = diretor, y = n/2, label = prop), size = 2.5)+
+      labs(y = "Frequência", x = "Diretores", title = "Top 10 Diretores de sucesso") +
+      coord_flip() +
+  theme_minimal()
+
+
+g2 <- filmes_sucesso %>% 
+  count(cor) %>% 
+  mutate(
+    cor = ifelse(cor == "Black and White", "Preto e Branco", "Colorido"),
+    prop = n / sum(n), prop = scales::percent(prop)
+  ) %>% 
+  ggplot() +
+    geom_col(aes(x = cor, y = n ), fill = cores$verde) +
+      geom_label(aes(x = cor, y = n/2, label = prop), size = 2.5) +
+      labs(x = "Cor", y = "Frequência", title = "Cor dos Filmes de Sucesso") +
+  theme_minimal()
+
+
+g3 <- filmes_sucesso %>% 
+  count(classificacao) %>% 
+    mutate(
+      prop = n / sum(n), prop = scales::percent(prop),
+      classificacao = forcats::fct_reorder(classificacao,n)
+          ) %>% 
+      ggplot() +
+      geom_col(aes(x = classificacao, y = n), fill = cores$vinho) +
+      geom_label(aes(x = classificacao, y = n/2, label = prop), size = 2.5) +
+      labs(x = "Classificação", y = "Frequência", title = "Classificação dos filmes de Sucesso") +
+  coord_flip() +
+  theme_minimal() 
+  
+
+g4 <- filmes_sucesso %>% 
+  count(ator_1) %>% 
+    top_n(10) %>% 
+      mutate(
+            prop = n / sum(n), prop = scales::percent(prop),
+            ator_1 = forcats::fct_reorder(ator_1, n)
+            ) %>% 
+  ggplot() +
+    geom_col(aes(x = ator_1, y = n), fill = cores$verde) +
+      geom_label(aes(x = ator_1, y = n/2, label = prop), size = 2.5) +
+        labs(x = "Atores Principais", y = "Frequência", title = "Top 10 atores principais de sucesso") +
+  coord_flip() +
+  theme_minimal()
+  
+g5 <- quadro_atores %>% 
+  count(atores) %>% 
+    top_n(10) %>% 
+      mutate(
+            prop = n / sum(n), prop = scales::percent(prop),
+            atores = forcats::fct_reorder(atores, n)
+            ) %>% 
+  ggplot() +
+    geom_col(aes(x = atores, y = n), fill = cores$vinho) +
+      geom_label(aes(x = atores, y = n/2, label = prop), size = 2.5) +
+        labs(x = "Atores do Elenco", y = "Frequência", title = "Top 10 atores (geral) de sucesso") +
+  coord_flip() +
+  theme_minimal()
+
+g6 <- tabela_generos%>% 
+  top_n(10) %>% 
+  mutate(
+    prop = freq / sum(freq), prop = scales::percent(prop),
+    generos = forcats::fct_reorder(generos, freq)
+  ) %>% 
+  ggplot() +
+    geom_col(aes(x = generos, y = freq), fill = cores$verde) +
+    geom_label(aes(x = generos, y = freq/2, label = prop), size = 2.5) +
+  labs(x = "Gêneros", y = "Frequência", title = "Top 10 gêneros dos filmes de sucesso") +
+  coord_flip() +
+  theme_minimal()
+
+(g1 + g2) / (g3 + g4) / (g5 + g6)
+
+```
+
+De acordo com as informações acima, ressaltam-se os dez diretores mais bem sucedidos em seus filmes, tendo destaque para **Steven Spielberg**, que possui uma grande quantidade de filmes considerados sucessos. Além dos diretores, os atores também possuem destaque em filmes de sucesso, como **Tom Hanks e Harrison Ford**, que representam 34,7% dos dez atores principais mais bem sucedidos. Sabendo do destaque dos atores, pode-se perceber que mesmo estes não sendo os atores principais, ainda possuem relação ao sucesso dos filmes. Analisando o gráfico dos dez atores mais bem sucedidos (considerando ator principal e coadjuvante), pode-se notar que **Morgan Freemen, John Ratzenberh** (que não aparecem entre os atores principais mais bem sucedidos) e **Matt Damon**, surgem entre os destaques desta lista. 
+
+
+Quando se fala de caraterísticas mais específicas da produção, a maioria dos filmes de sucesso são coloridos (97%), com classificação a partir de 13 anos (71,4% - sendo 40,3% de filmes a partir de 18 anos) e dos gêneros drama, aventura e comédia. Além disso a duração média destes filmes é de 127 minutos (ou 2h e 7 min) e orçamento médio de $57.066.837.
+
+Vale a pena verificar os gastos orçamentários de cada diretor, visto que pode impactar diretamente no lucro de um filme:
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5), fig.cap="Figura 4. Boxplot de orçamento vs diretores"}
+
+top_10 <- filmes_sucesso %>% 
+  count(diretor) %>% 
+  top_n(10)
+
+filmes_sucesso%>%
+  filter(diretor %in% top_10$diretor) %>% 
+    mutate(
+            diretor = forcats::fct_reorder(diretor, desc(orcamento))
+          ) %>% 
+  ggplot() +
+    geom_boxplot(aes(y = orcamento), fill = cores$vinho, color = cores$verde) +
+      facet_wrap(vars(diretor))  +
+  theme_minimal()
+
+
+```
+Nota-se que **Christopher Nolan** e **James Cameron** foram os que mais gastaram em um filme, sendo o primeiro com a maior mediana dos orçamentos dos filmes. Como esta variável, a pricípio, é melhor quanto menor (deseja-se gastar menos), percebe-se que **Rob Reinier**, **James Wan** e **Francis Ford Coppola** tiveram os menores gastos em um filme, sendo que **Coppola** e **Steven Spilberg** tiveram as menores medianas dentre todos os filmes produzidos. 
+
+Destaca-se também a análise da média orçamentária dos filmes destes diretores:
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5)}
+filmes_sucesso %>%
+  filter(diretor %in% top_10$diretor) %>% 
+  group_by(diretor) %>% 
+    summarise(media_orcamento = mean(orcamento, na.rm = T)) %>% 
+      arrange(desc(media_orcamento))  %>% 
+  knitr::kable()
+```
+
+Na análise das médias, veirifica-se que os maiores gastos médios são de **Christopher Nolan**, **Peter Jackson** e **James Cameron**, enquanto que os menores pertencem aos diretores **Francis Ford Coppola** , **Rob Reinier** e **Clint Eastwod**.
+
+
+**Características de Pós lançamento**
+
+Para as características de pós lançamento, é válido fazer os cruzamentos com as informações extraídas da análise de pré lançamento.
+
+Com isso, verificam-se os lucros de cada diretor bem sucedido:
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5), fig.cap="Figura 4. Boxplot de lucro vs diretores"}
+
+top_10 <- filmes_sucesso %>% 
+  count(diretor) %>% 
+  top_n(10)
+
+filmes_sucesso%>%
+  filter(diretor %in% top_10$diretor) %>% 
+    mutate(
+            diretor = forcats::fct_reorder(diretor, desc(lucro))
+          ) %>% 
+  ggplot() +
+  geom_boxplot(aes(y = lucro), fill = cores$verde, color = cores$vinho) +
+  facet_wrap(vars(diretor))  +
+  theme_minimal()
+
+
+```
+
+Pode-se perceber que **James Cameron** foi o diretor que teve mais lucro em um filme, enquanto que **Peter Jackson** possui maior valor de mediana. Já quando se comparam as médias desses diretores nota-se que, além de **James Cameron**, que permanece em primeiro lugar, **Christopher Nolan** surge como segunda maior média de lucro.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(14,10)}
+filmes_sucesso %>%
+  filter(diretor %in% top_10$diretor) %>% 
+  group_by(diretor) %>% 
+    summarise(media_lucro = mean(lucro, na.rm = T)) %>% 
+      arrange(desc(media_lucro))  %>% 
+  knitr::kable()
+```
+
+A mesma análise será feita para a nota IMDB.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5), fig.cap="Figura 4. Boxplot da nota do IMDB vs diretores"}
+
+top_10 <- filmes_sucesso %>% 
+  count(diretor) %>% 
+  top_n(10)
+
+filmes_sucesso%>%
+  filter(diretor %in% top_10$diretor) %>% 
+   mutate(
+            diretor = forcats::fct_reorder(diretor, desc(nota_imdb))
+          ) %>% 
+  ggplot() +
+  geom_boxplot(aes(y = nota_imdb), fill = cores$vinho, color = cores$verde) +
+  facet_wrap(vars(diretor))  +
+  theme_minimal()
+
+
+```
+
+Qunato se fala de avaliação da crítica, **Francis Ford Coppola** apresenta a maior nota e maior mediana dentre os diretores. Olhando para as médias das notas por diretor bem sucedido, **James Cameron** tem melhor desempenho, seguido de **Christopher Nolan**.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5)}
+filmes_sucesso %>%
+  filter(diretor %in% top_10$diretor) %>% 
+  group_by(diretor) %>% 
+    summarise(media_nota_imdb = round(mean(nota_imdb, na.rm = T),2)) %>% 
+      arrange(desc(media_nota_imdb))  %>% 
+  knitr::kable()
+```
+
+
+## Análise profunda dos dados
+
+Com a análise exploratória dos dados, aplicou-se um modelo de regressão logística a fim de descobrir o impacto de cada atributo de um filme no seu sucesso. Para isso, utilizaram-se tranformações e adições de novas variáveis. São estas:
+
+
+Variável| Critério
+-----------|-------------
+sucesso (0 ou 1) | Nota do IMDB > 7,1 e Lucro > 30.127.620
+sucesso_diretor (0 ou 1) | Top 10 diretores de sucesso
+sucesso_ator_principal (0 ou 1) | Top 10 atores principais
+sucesso_classificacao | Categorias > 13 anos e > 18 anos
+sucesso_duracao | > 127 min
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5)}
+top_atores <- imdb %>% 
+  count(ator_1) %>% 
+    top_n(10)
+
+filmes_sucesso <- filmes_sucesso %>%
+  mutate(
+    sucesso = as.factor(ifelse(sucesso == "SIM",1,0)),
+    sucesso_diretor = as.factor(ifelse(diretor %in% top_10$diretor, 1 ,0)),
+    sucesso_ator_principal = as.factor(ifelse( ator_1 %in% top_atores$ator_1, 1, 0))
+  )
+```
+
+
+Diante das novas variáveis, separa-se uma parte da base para treino (70%) e outra parte para teste (30%) a fim da aplicação da modelagem. Com isso, verificam-se as razões entre as classes das variáveis:
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.dim=c(8,5)}
+imdb <- imdb %>%
+  mutate(
+    sucesso = as.factor(ifelse(sucesso == "SIM",1,0)),
+    sucesso_diretor = as.factor(ifelse(diretor %in% top_10$diretor, 1 ,0)),
+    sucesso_ator_principal = as.factor(ifelse( ator_1 %in% top_atores$ator_1, 1, 0)),
+    sucesso_classificacao = as.factor(ifelse(classificacao == "A partir de 18 anos" |
+                                             classificacao == "A partir de 13 anos", 1, 0)),
+    sucesso_duracao = as.factor(ifelse(duracao > 127, 1, 0)),
+  )
+
+set.seed(0)
+i <- sample(0.7*nrow(imdb))
+base_treino <- imdb[i,]
+base_teste <- imdb[-i,]
+
+
+reg_log <- base_treino %>% 
+  glm(sucesso~sucesso_diretor+sucesso_ator_principal+sucesso_duracao+cor+
+      orcamento+likes_facebook+sucesso_classificacao, family = binomial(link="logit"), data = .)
+
+modelo_reg_log <- summary(reg_log)
+
+tabela_parametros <- as.data.frame(modelo_reg_log$coefficients)
+
+tabela_parametros<- tabela_parametros %>%
+  mutate(
+    Variaveis = row.names(tabela_parametros),
+    Estimate = round(exp(Estimate),2),
+    `Std. Error` = round(`Std. Error`,2), 
+    `z value` = round(`z value`,2), 
+    `Pr(>|z|)` = round(`Pr(>|z|)`,2)) %>% 
+    select(Variaveis, Estimate, `Std. Error`, `z value`, `Pr(>|z|)`)
+
+
+colnames(tabela_parametros) <- c("Variáveis", "Razão de Chance", "Erro Padrão", "Valor de z", "p-valor")
+
+tabela_parametros %>%
+    knitr::kable()
+```
+
+De acordo com a tabela acima, em relação ao sucesso de um filme:
+
+- Possui 6 vezes mais chance caso seja dirigido por um dos TOP 10 diretores de sucesso;
+
+- Possui 2 vezes mais chance caso tenha atuação principal dos TOP 10 atores principais;
+
+- Possui 4 vezes mais chance caso tenha mais de 127 minutos de duraão;
+
+- Possui 0,60 vezes mais chance caso não seja das categorias mais que 13 e mais que 18 anos de idade.
+
+No entando, como a variável sucesso_classificação contraria a análise descritiva (devido estarem muitos filmes de sucesso e insucesso conditos das categorias), esta não será levada em consideração. Outra variável que, mesmo sendo aceita na equação de predição, não será considerada, é likes no facebook, visto que sua razão de chance não demonstra influência no sucesso de um filme.
+
+Com isso, aplica-se a predição para verificar a acurácia do modelo:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+predicao <- base_teste %>%
+  predict(reg_log, newdata = ., type = 'response')
+
+comparacao <- base_teste %>% 
+  select(sucesso) %>% 
+    mutate(
+      predito = predicao,
+      resultado = ifelse(predito>0.1,1,0)
+    )
+
+
+m_confuso <- table(comparacao$sucesso,comparacao$resultado)
+m_confuso %>%
+  knitr::kable()
+
+p1 <- sum(diag(m_confuso))/sum(m_confuso)
+
+```
+
+Como já aplicou-se a segmentação dos filmes de sucesso, adotou-se a probabilidade de 0,1 para identificar um filme de sucesso. De acordo com a matriz de confusão acima, verifica-se que o modelo teve acurácia de 0,86, ou 86%.
+
+
+## Conclusão e Resultados
+
+Diante das informações analisadas e exploradas, pode-se indicar que as medidas para se obter sucesso da crítica e financeiro em um filme são:
+
+- Escolher um dos top 10 diretores mais bem sucedidos, visto que aumenta em 6 vezes a chance de sucesso:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+filmes_sucesso %>% 
+    count(diretor) %>% 
+      top_n(10) %>% 
+  mutate(
+    Diretor = diretor
+  ) %>% 
+  select(Diretor) %>% 
+  knitr::kable()
+```
+
+Ressalta-se que o diretor **Christopher Nolan** se destacou entre as maiores notas e maiores lucros, sendo a melhor indição individual de diretor. Caso deseja-se ter menores gastos, o diretor **Francis Ford Coppola** seria a melhor indicação, ainda sim garantindo uma grande chance de sucesso;
+
+- Esolher entre os top 10 atores principais mais bem sucedidos, visto que aumenta em 2 vezes a chance de sucesso:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+filmes_sucesso %>% 
+  count(ator_1) %>% 
+    top_n(10) %>% 
+      mutate(
+            Atores = ator_1
+            ) %>% 
+  select(Atores) %>% 
+  knitr::kable()
+```
+Destaque para **Tom Hanks** e **Harrison Ford**, que são os que participaram de mais filmes que obtiveram sucesso;
+
+- Produzir um filme com mais de 127 minutos, pois apresenta 4 vezes mais chance de sucesso;
+
+- Produzir filmes do gênero Drama e coloridos, visto que são a maioria entre os que obtiveram sucesso;
+
+- Ter um orçamento por volta de $57.066.837, que é o orçamento médio entre os filmes de sucesso.
+
+
+Com estas tratativas na produção de um filme, as chances de sucesso ficam mais evidentes, tanto no lucro quanto na avaliação da crítica.
+
+Qualquer dúvida ou sugestão, só entrar em contato meu [meu Linkedin](https://www.linkedin.com/in/rodrigoalmeidafigueira/).
+
+
+
+
