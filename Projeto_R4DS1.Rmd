@@ -88,7 +88,7 @@ imdb %>%
                              lab_size = 3,
                              tl.cex = 8,
                              method="circle", 
-                             colors = c("tomato2", "white", cores$verde),
+                             colors = c("tomato2", "white", "springgreen3"),
                              ggtheme=theme_bw, insig = "blank")
 ```
 
